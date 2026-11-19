@@ -62,7 +62,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F7F8FA] dark:bg-[#0D0F12] text-slate-900 dark:text-slate-100 transition-colors duration-200">
+    <div className={`min-h-screen flex flex-col bg-[#F7F8FA] dark:bg-[#0D0F12] text-slate-900 dark:text-slate-100 transition-colors duration-200 ${darkMode ? 'dark' : ''}`}>
       
       {/* Top Header */}
       <Navbar

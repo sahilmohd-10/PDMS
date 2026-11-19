@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     --bg-app: #F8FAFC;
@@ -19,7 +21,7 @@
     --status-not-buy-bg: #FEF2F2;
   }
 
-  .dark {
+  .dark, :root.dark, html.dark {
     --bg-app: #090B0E;
     --bg-surface: #11141A;
     --bg-subtle: #181C24;
