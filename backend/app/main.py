@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import time
 
 from app.api.routes import router
+from app.api.evaluation_routes import router as evaluation_router
 
 app = FastAPI(
     title="HIRS API — Hardware Intelligence & Recommendation System",
@@ -25,6 +26,7 @@ app.add_middleware(
 
 # Include the API router
 app.include_router(router)
+app.include_router(evaluation_router)
 
 @app.get("/health")
 def health_check():

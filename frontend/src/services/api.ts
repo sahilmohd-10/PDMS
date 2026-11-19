@@ -2,7 +2,10 @@ import type {
   PredictRequest, PredictResponse,
   RecommendRequest, RecommendResponse,
   CompareRequest, CompareResponse,
-  HardwareOptions, HardwareExploreResponse
+  HardwareOptions, HardwareExploreResponse,
+  EvaluationRequest, EvaluationResponse,
+  EvaluationRecommendRequest, EvaluationRecommendResponse,
+  EvaluationCompareRequest, EvaluationCompareResponse
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
@@ -48,6 +51,30 @@ export const hirsApi = {
       method: 'POST',
       body: JSON.stringify(payload)
     }),
+
+  // Scientific Hybrid Evaluation Engine Endpoints
+  evaluateHardware: (payload: EvaluationRequest) =>
+    request<EvaluationResponse>('/api/evaluation/evaluate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  evaluateRecommend: (payload: EvaluationRecommendRequest) =>
+    request<EvaluationRecommendResponse>('/api/evaluation/recommend', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  evaluateCompare: (payload: EvaluationCompareRequest) =>
+    request<EvaluationCompareResponse>('/api/evaluation/compare', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  getEvaluationConfig: () => request<any>('/api/evaluation/config'),
+  getEvaluationBenchmarks: () => request<any>('/api/evaluation/benchmarks'),
+  getEvaluationMetrics: () => request<any>('/api/evaluation/metrics'),
+  getEvaluationStatus: () => request<any>('/api/evaluation/status'),
 
   // Model Status & Metrics
   getModelStatus: () => request<any>('/api/model/status'),

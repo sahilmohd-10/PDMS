@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  CheckCircle2, XCircle, AlertTriangle, 
-  RefreshCw, GitCompare, Compass
+  CheckCircle2, XCircle, HelpCircle, 
+  RefreshCw, GitCompare, Compass, 
+  ChevronDown, ChevronUp, ShieldCheck, 
+  Cpu, HardDrive, Zap, Tag
 } from 'lucide-react';
 import { hirsApi } from '../services/api';
-import type { PredictResponse, HardwareItem } from '../types';
+import type { 
+  EvaluationResponse, 
+  RecommendationCandidate, 
+  WorkloadType 
+} from '../types';
 import { Toast, type ToastMessage } from '../components/ui/Toast';
 
 interface AnalyzerProps {
@@ -24,10 +30,15 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
   const [graphics, setGraphics] = useState(initialConfig?.graphics || 'NVIDIA GeForce RTX 4070');
   const [price, setPrice] = useState<number>(initialConfig?.price_inr || 145000);
   const [deviceType, setDeviceType] = useState(initialConfig?.device_type || 'Desktop');
+  const [workload, setWorkload] = useState<WorkloadType>('Gaming');
+  const [userBudget, setUserBudget] = useState<number | undefined>(undefined);
+  const [ramGeneration, setRamGeneration] = useState('DDR5');
+  const [ssdInterface, setSsdInterface] = useState('NVMe Gen4');
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<PredictResponse | null>(null);
-  const [alternatives, setAlternatives] = useState<HardwareItem[]>([]);
+  const [evalResult, setEvalResult] = useState<EvaluationResponse | null>(null);
+  const [showDetailedMath, setShowDetailedMath] = useState(false);
+  const [alternatives, setAlternatives] = useState<RecommendationCandidate[]>([]);
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
   const [options, setOptions] = useState<{ cpus: string[], gpus: string[] }>({ cpus: [], gpus: [] });
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -51,10 +62,10 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
   }, []);
 
   const presets = [
-    { label: 'Gaming Build (Mid-High)', cpu: 'AMD Ryzen 7 7800X3D', ram: 32, ssd: 1000, graphics: 'NVIDIA GeForce RTX 4070', price: 145000 },
-    { label: 'Budget Entry PC', cpu: 'Intel Core i5-13400F', ram: 16, ssd: 512, graphics: 'NVIDIA GeForce RTX 3060', price: 68000 },
-    { label: 'Low Core Legacy Rig', cpu: 'Intel Core 2 Quad Q9300', ram: 64, ssd: 2000, graphics: 'Zotac ZT-70601-10M', price: 195000 },
-    { label: 'Workstation Compute', cpu: 'AMD Ryzen 9 7950X', ram: 64, ssd: 2000, graphics: 'NVIDIA GeForce RTX 4080', price: 280000 },
+    { label: 'Gaming Build (Mid-High)', cpu: 'AMD Ryzen 7 7800X3D', ram: 32, ssd: 1000, graphics: 'NVIDIA GeForce RTX 4070', price: 145000, workload: 'Gaming' as WorkloadType, ramGen: 'DDR5' },
+    { label: 'Deep Learning Rig', cpu: 'AMD Ryzen 9 9950X', ram: 64, ssd: 2000, graphics: 'NVIDIA GeForce RTX 4090', price: 340000, workload: 'Deep Learning' as WorkloadType, ramGen: 'DDR5' },
+    { label: 'Programming Devbox', cpu: 'Intel Core i7-13700K', ram: 32, ssd: 1000, graphics: 'NVIDIA GeForce RTX 4060', price: 118000, workload: 'Programming' as WorkloadType, ramGen: 'DDR5' },
+    { label: 'Budget Office PC', cpu: 'Intel Core i5-12400', ram: 16, ssd: 512, graphics: 'Integrated Graphics', price: 42000, workload: 'Office' as WorkloadType, ramGen: 'DDR4' },
   ];
 
   const applyPreset = (p: typeof presets[0]) => {
@@ -63,6 +74,8 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
     setSsd(p.ssd);
     setGraphics(p.graphics);
     setPrice(p.price);
+    setWorkload(p.workload);
+    setRamGeneration(p.ramGen);
   };
 
   const handleAnalyze = async (e: React.FormEvent) => {
@@ -90,15 +103,19 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
     setAlternatives([]);
 
     try {
-      const res = await hirsApi.predictHardware({
+      const res = await hirsApi.evaluateHardware({
         cpu: cpu.trim(),
         ram_gb: ram,
         ssd_gb: ssd,
         graphics: graphics.trim(),
         price_inr: price,
-        device_type: deviceType
+        device_type: deviceType,
+        workload: workload,
+        user_budget_inr: userBudget,
+        ram_generation: ramGeneration,
+        ssd_interface: ssdInterface
       });
-      setResult(res);
+      setEvalResult(res);
 
       // Save to recent evaluations in local storage
       const existing = JSON.parse(localStorage.getItem('hirs-recent-evals') || '[]');
@@ -108,21 +125,22 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
         ram_gb: ram,
         ssd_gb: ssd,
         price_inr: price,
-        prediction: res.prediction,
-        buy_probability: res.buy_probability,
+        decision: res.decision,
+        performance_score: res.performance_score,
+        value_index: res.relative_value_index,
         date: new Date().toLocaleTimeString()
       };
       localStorage.setItem('hirs-recent-evals', JSON.stringify([newEntry, ...existing.slice(0, 9)]));
 
-      // If prediction is NOT BUY, auto-fetch high-value alternative configurations within the same budget ceiling
-      if (res.prediction === 'NOT BUY') {
-        fetchAlternatives(price);
+      // If prediction is NOT BUY or INSUFFICIENT_DATA, auto-fetch high-value alternatives
+      if (res.decision !== 'BUY') {
+        fetchAlternatives(userBudget || price);
       }
     } catch (err: any) {
       setToast({
         id: String(Date.now()),
         type: 'error',
-        text: err.message || 'Analysis failed. Please verify API service connectivity.'
+        text: err.message || 'Evaluation failed. Please verify API service connectivity.'
       });
     } finally {
       setLoading(false);
@@ -132,17 +150,17 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
   const fetchAlternatives = async (targetBudget: number) => {
     setLoadingAlternatives(true);
     try {
-      const recRes = await hirsApi.recommendHardware({
+      const recRes = await hirsApi.evaluateRecommend({
         budget_inr: targetBudget,
         device_type: deviceType,
-        workload: ['General Purpose'],
+        workload: workload,
         limit: 2
       });
-      if (recRes && recRes.recommendations) {
-        setAlternatives(recRes.recommendations.slice(0, 2));
+      if (recRes && recRes.ranked_candidates) {
+        setAlternatives(recRes.ranked_candidates.slice(0, 2));
       }
     } catch (err) {
-      console.error(err);
+      console.error('Alternatives query error:', err);
     } finally {
       setLoadingAlternatives(false);
     }
@@ -156,18 +174,26 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
 
       {/* Header */}
       <div className="pb-4 border-b border-slate-200 dark:border-[#202632]">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Is this hardware worth buying?
-        </h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Evaluate any hardware configuration against our trained machine learning model to verify value and detect bottlenecks.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Hardware Purchasing Evaluator
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Scientific hybrid evaluation combining normalized benchmark ratios, deterministic eligibility rules, peer-relative value, and fair-price bounds.
+            </p>
+          </div>
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Hybrid Decision Engine</span>
+          </span>
+        </div>
       </div>
 
       {/* Preset Pills */}
       <div className="space-y-1.5">
         <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-          Sample Configurations:
+          Sample Evaluation Profiles:
         </span>
         <div className="flex flex-wrap gap-2">
           {presets.map((p, idx) => (
@@ -224,49 +250,20 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-              RAM Capacity (GB)
+              Target Workload
             </label>
-            <input
-              type="number"
-              min={4}
-              max={512}
-              value={ram}
-              onChange={(e) => setRam(Number(e.target.value))}
+            <select
+              value={workload}
+              onChange={(e) => setWorkload(e.target.value as WorkloadType)}
               className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-              Storage SSD (GB)
-            </label>
-            <input
-              type="number"
-              min={128}
-              max={8000}
-              step={128}
-              value={ssd}
-              onChange={(e) => setSsd(Number(e.target.value))}
-              className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-              Retail Price (₹ INR)
-            </label>
-            <input
-              type="number"
-              min={10000}
-              max={1000000}
-              step={1000}
-              value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
-              className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
-              required
-            />
+            >
+              <option value="Gaming">Gaming (Heavy GPU)</option>
+              <option value="Programming">Programming & Compilation (Heavy CPU)</option>
+              <option value="Data Analytics">Data Analytics (High RAM & Multi-core)</option>
+              <option value="Deep Learning">Deep Learning & AI (Dedicated VRAM + GPU)</option>
+              <option value="Video Editing">Video Editing (High Bandwidth RAM & GPU)</option>
+              <option value="Office">Office & Productivity (Balanced)</option>
+            </select>
           </div>
 
           <div>
@@ -282,6 +279,94 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
               <option value="Laptop">Laptop</option>
             </select>
           </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              RAM Capacity & Generation
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                min={4}
+                max={512}
+                value={ram}
+                onChange={(e) => setRam(Number(e.target.value))}
+                className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+                placeholder="GB RAM"
+                required
+              />
+              <select
+                value={ramGeneration}
+                onChange={(e) => setRamGeneration(e.target.value)}
+                className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+              >
+                <option value="DDR5">DDR5</option>
+                <option value="DDR4">DDR4</option>
+                <option value="DDR3">DDR3</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Storage SSD & Interface
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                min={128}
+                max={16000}
+                step={128}
+                value={ssd}
+                onChange={(e) => setSsd(Number(e.target.value))}
+                className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+                placeholder="GB SSD"
+                required
+              />
+              <select
+                value={ssdInterface}
+                onChange={(e) => setSsdInterface(e.target.value)}
+                className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+              >
+                <option value="NVMe Gen4">NVMe Gen4</option>
+                <option value="NVMe Gen3">NVMe Gen3</option>
+                <option value="NVMe Gen5">NVMe Gen5</option>
+                <option value="SATA">SATA III</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Listing Retail Price (₹ INR)
+            </label>
+            <input
+              type="number"
+              min={10000}
+              max={1500000}
+              step={1000}
+              value={price}
+              onChange={(e) => setPrice(Number(e.target.value))}
+              className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Optional Budget Ceiling (₹ INR)
+            </label>
+            <input
+              type="number"
+              min={10000}
+              max={2000000}
+              step={5000}
+              value={userBudget || ''}
+              onChange={(e) => setUserBudget(e.target.value ? Number(e.target.value) : undefined)}
+              placeholder="e.g. 160000 (Leave blank if open)"
+              className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+            />
+          </div>
         </div>
 
         <div className="pt-2">
@@ -293,132 +378,270 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
             {loading ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Evaluating Configuration...</span>
+                <span>Running Evaluation Pipeline...</span>
               </>
             ) : (
-              <span>Analyze Configuration</span>
+              <span>Evaluate Hardware</span>
             )}
           </button>
         </div>
       </form>
 
       {/* Results View */}
-      {result && (
+      {evalResult && (
         <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-6">
           
-          {/* Out of Distribution Warning Banner */}
-          {result.is_out_of_distribution && (
-            <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-bold block">Out-of-Distribution Hardware Detected</span>
-                <p className="leading-relaxed">
-                  One or more hardware components (or pricing ratio) falls outside the primary parameter distributions of our training dataset. The model's prediction is extrapolated based on parsed feature heuristics.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Top Banner Decision */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100 dark:border-[#202632]">
             <div className="flex items-center gap-3">
-              {result.prediction === 'BUY' ? (
-                <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6" />
+              {evalResult.decision === 'BUY' && (
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <CheckCircle2 className="w-7 h-7" />
                 </div>
-              ) : (
-                <div className="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-                  <XCircle className="w-6 h-6" />
+              )}
+              {evalResult.decision === 'NOT BUY' && (
+                <div className="w-12 h-12 rounded-xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                  <XCircle className="w-7 h-7" />
+                </div>
+              )}
+              {evalResult.decision === 'INSUFFICIENT_DATA' && (
+                <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <HelpCircle className="w-7 h-7" />
                 </div>
               )}
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Model Decision
+                  Evaluation Verdict ({evalResult.workload})
                 </div>
                 <div className={`text-2xl font-black ${
-                  result.prediction === 'BUY' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                  evalResult.decision === 'BUY' 
+                    ? 'text-emerald-600 dark:text-emerald-400' 
+                    : evalResult.decision === 'NOT BUY' 
+                    ? 'text-rose-600 dark:text-rose-400' 
+                    : 'text-amber-600 dark:text-amber-400'
                 }`}>
-                  {result.prediction}
+                  {evalResult.decision}
                 </div>
               </div>
             </div>
 
             <div className="text-left sm:text-right text-xs">
-              <span className="text-slate-500 block text-[11px]">Model Probability</span>
-              <span className="font-mono font-bold text-xl text-slate-900 dark:text-white">
-                {(result.buy_probability * 100).toFixed(1)}%
+              <span className="text-slate-500 block text-[11px]">Fair Price Assessment</span>
+              <span className="font-mono font-bold text-lg text-slate-900 dark:text-white">
+                {evalResult.fair_price_assessment.estimated_fair_price 
+                  ? `₹${evalResult.fair_price_assessment.estimated_fair_price.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` 
+                  : 'N/A'}
               </span>
               <span className="text-[11px] text-slate-500 block mt-0.5">
-                Confidence: <strong className="text-slate-800 dark:text-slate-200">{result.confidence_level}</strong>
+                Premium: {evalResult.fair_price_assessment.price_premium_pct !== null && evalResult.fair_price_assessment.price_premium_pct !== undefined ? (
+                  <strong className={evalResult.fair_price_assessment.price_premium_pct <= 0 ? 'text-emerald-600' : 'text-amber-600'}>
+                    {evalResult.fair_price_assessment.price_premium_pct > 0 ? `+${evalResult.fair_price_assessment.price_premium_pct}%` : `${evalResult.fair_price_assessment.price_premium_pct}%`}
+                  </strong>
+                ) : 'Unverified'} ({evalResult.fair_price_assessment.status})
               </span>
             </div>
           </div>
 
-          {/* Scores Overview */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
+          {/* Scores Overview Matrix */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-[#202632]">
-              <span className="text-[11px] font-medium text-slate-500 block">Hardware Compute Score</span>
+              <span className="text-[11px] font-medium text-slate-500 block flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 text-blue-500" />
+                Workload Index P(i,w)
+              </span>
               <span className="text-lg font-bold font-mono text-slate-900 dark:text-white block mt-0.5">
-                {result.hardware_score?.toFixed(1) || '0.0'} / 100
+                {evalResult.performance_score.toFixed(1)}
               </span>
+              <span className="text-[10px] text-slate-400">Baseline Ref = 100.0</span>
             </div>
+
             <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-[#202632]">
-              <span className="text-[11px] font-medium text-slate-500 block">Value-to-Price Index</span>
+              <span className="text-[11px] font-medium text-slate-500 block flex items-center gap-1">
+                <Tag className="w-3.5 h-3.5 text-emerald-500" />
+                Peer Value Index VI(i)
+              </span>
               <span className="text-lg font-bold font-mono text-blue-600 dark:text-blue-400 block mt-0.5">
-                {result.value_score?.toFixed(2) || '0.00'}
+                {evalResult.relative_value_index.toFixed(1)}
               </span>
+              <span className="text-[10px] text-slate-400">Peer Median = 100.0</span>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-[#202632]">
+              <span className="text-[11px] font-medium text-slate-500 block flex items-center gap-1">
+                <Cpu className="w-3.5 h-3.5 text-purple-500" />
+                Eligibility Status
+              </span>
+              <span className={`text-sm font-bold block mt-1 ${
+                evalResult.eligibility.overall_status === 'PASS' ? 'text-emerald-600' : evalResult.eligibility.overall_status === 'FAIL' ? 'text-rose-600' : 'text-amber-600'
+              }`}>
+                {evalResult.eligibility.overall_status}
+              </span>
+              <span className="text-[10px] text-slate-400">{evalResult.eligibility.checks.length} Rules Evaluated</span>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-[#202632]">
+              <span className="text-[11px] font-medium text-slate-500 block flex items-center gap-1">
+                <HardDrive className="w-3.5 h-3.5 text-amber-500" />
+                Evidence Completeness
+              </span>
+              <span className="text-lg font-bold font-mono text-slate-900 dark:text-white block mt-0.5">
+                {(evalResult.evidence_completeness * 100).toFixed(0)}%
+              </span>
+              <span className="text-[10px] text-slate-400">Zero Fabricated Data</span>
             </div>
           </div>
 
-          {/* Explanation */}
-          <div className="space-y-1.5">
-            <span className="text-xs font-bold text-slate-900 dark:text-white block">
-              Explanation:
-            </span>
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-white/5 p-3.5 rounded-lg">
-              {result.explanation}
-            </p>
-          </div>
-
-          {/* Key Influencing Factors */}
-          {result.feature_contributions.length > 0 && (
-            <div className="space-y-2">
+          {/* Structured Explanation */}
+          <div className="space-y-3">
+            <div className="space-y-1.5">
               <span className="text-xs font-bold text-slate-900 dark:text-white block">
-                Influential Features:
+                Executive Synthesis:
               </span>
-              <div className="grid sm:grid-cols-2 gap-3 text-xs">
-                {result.feature_contributions.map((fc, i) => (
-                  <div key={i} className="p-3 rounded-lg border border-slate-200/80 dark:border-[#202632] bg-slate-50/50 dark:bg-white/5">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-semibold text-slate-900 dark:text-white">{fc.feature}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        fc.impact === 'Positive'
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
-                      }`}>
-                        {fc.impact}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-                      {fc.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-white/5 p-3.5 rounded-lg border border-slate-200/50 dark:border-[#202632]">
+                {evalResult.explanation.summary}
+              </p>
             </div>
-          )}
 
-          {/* Alternative Recommendation (Shown when NOT BUY) */}
-          {result.prediction === 'NOT BUY' && (
+            {/* Reasons */}
+            {evalResult.explanation.reasons.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
+                  Verified Decision Factors:
+                </span>
+                <ul className="space-y-1 text-xs">
+                  {evalResult.explanation.reasons.map((r, i) => (
+                    <li key={i} className="flex items-start gap-2 text-slate-600 dark:text-slate-300">
+                      <span className="text-emerald-500 font-bold shrink-0">•</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Warnings */}
+            {evalResult.explanation.warnings.length > 0 && (
+              <div className="p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-1">
+                <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 block">
+                  Advisory Warnings:
+                </span>
+                <ul className="space-y-1 text-[11px] text-amber-700 dark:text-amber-200">
+                  {evalResult.explanation.warnings.map((w, i) => (
+                    <li key={i}>⚠ {w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Missing Evidence */}
+            {evalResult.explanation.missing_evidence.length > 0 && (
+              <div className="p-3 rounded-lg bg-slate-100 dark:bg-white/5 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
+                <span className="font-semibold block">Missing or Unverified Evidence (Reported as UNKNOWN, Not Fabricated):</span>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {evalResult.explanation.missing_evidence.map((m, i) => (
+                    <li key={i}>{m}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Deterministic Eligibility Breakdown */}
+          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-[#202632]">
+            <span className="text-xs font-bold text-slate-900 dark:text-white block">
+              Deterministic Eligibility Verification:
+            </span>
+            <div className="grid sm:grid-cols-2 gap-2 text-xs">
+              {evalResult.eligibility.checks.map((c, i) => (
+                <div key={i} className="p-2.5 rounded-lg border border-slate-200/80 dark:border-[#202632] bg-slate-50/50 dark:bg-white/5 flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-semibold text-slate-900 dark:text-white block text-[11px]">{c.name}</span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">{c.message}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                    c.status === 'PASS' 
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                      : c.status === 'FAIL'
+                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                  }`}>
+                    {c.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Detailed Mathematical Evaluation View (Collapsible) */}
+          <div className="pt-2 border-t border-slate-100 dark:border-[#202632]">
+            <button
+              type="button"
+              onClick={() => setShowDetailedMath(!showDetailedMath)}
+              className="flex items-center justify-between w-full py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+            >
+              <span>{showDetailedMath ? 'Hide Detailed Evaluation Telemetry' : 'Show Detailed Evaluation Telemetry (Formulas & Benchmark Ratios)'}</span>
+              {showDetailedMath ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showDetailedMath && (
+              <div className="mt-3 p-4 rounded-xl bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-[#202632] space-y-4 text-xs font-mono">
+                <div>
+                  <span className="font-bold text-slate-900 dark:text-white block text-[11px]">
+                    Performance Formula:
+                  </span>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">
+                    P(i,w) = 100 × exp( Σ [ α(w,j) × ln(Score_j / Baseline_j) ] )
+                  </p>
+                </div>
+
+                {/* Benchmark Ratio Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-white/10 text-slate-400">
+                        <th className="py-1">Component</th>
+                        <th className="py-1">Raw Metric</th>
+                        <th className="py-1">Baseline Ref</th>
+                        <th className="py-1">Ratio R(i,j)</th>
+                        <th className="py-1">Weight α</th>
+                        <th className="py-1">Weighted Log</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(evalResult.benchmark_ratios).map(([key, item]) => (
+                        <tr key={key} className="border-b border-slate-200/50 dark:border-white/5 text-slate-700 dark:text-slate-300">
+                          <td className="py-1 font-semibold">{item.component}</td>
+                          <td className="py-1">{item.raw_metric.toLocaleString()}</td>
+                          <td className="py-1">{item.reference_metric.toLocaleString()}</td>
+                          <td className="py-1 font-bold text-blue-600 dark:text-blue-400">{item.ratio}×</td>
+                          <td className="py-1">{(item.weight * 100).toFixed(0)}%</td>
+                          <td className="py-1">{item.weighted_log.toFixed(4)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 dark:border-white/10 text-[10px] text-slate-500 dark:text-slate-400 space-y-1">
+                  <p>Resolved Hardware: CPU = {evalResult.detailed_evaluation_metrics.resolved_cpu || 'Generic'} | GPU = {evalResult.detailed_evaluation_metrics.resolved_gpu || 'Integrated'}</p>
+                  <p>Comparable Market Peers Sampled: {evalResult.detailed_evaluation_metrics.comparable_peers_count} units (Same form factor, non-mixed).</p>
+                  <p className="italic">Disclosure: {evalResult.ml_support.synthetic_supervision_notice}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Alternatives Row */}
+          {evalResult.decision !== 'BUY' && (
             <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-[#202632]">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                   <Compass className="w-4 h-4 text-blue-600" />
-                  <span>Better Alternatives Within ₹{price.toLocaleString()} Budget:</span>
+                  <span>Recommended High-Value Alternatives Within Budget:</span>
                 </span>
                 {onNavigateToRecommendations && (
                   <button
-                    onClick={() => onNavigateToRecommendations(price)}
+                    onClick={() => onNavigateToRecommendations(userBudget || price)}
                     className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                   >
                     View All Matches →
@@ -429,7 +652,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
               {loadingAlternatives ? (
                 <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Searching candidate builds for higher compute/value score...</span>
+                  <span>Searching eligible alternatives using TOPSIS relative closeness...</span>
                 </div>
               ) : alternatives.length > 0 ? (
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -441,7 +664,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
                             {alt.name}
                           </span>
                           <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            ₹{alt.price.toLocaleString()}
+                            ₹{alt.price_inr.toLocaleString()}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
@@ -450,8 +673,8 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
                       </div>
 
                       <div className="pt-2 mt-2 border-t border-slate-200/50 dark:border-white/5 flex items-center justify-between">
-                        <span className="text-[10px] text-emerald-600 font-mono">
-                          {(alt.buy_probability * 100).toFixed(0)}% BUY Prob
+                        <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">
+                          TOPSIS: {alt.topsis_score.toFixed(3)}
                         </span>
                         {onAddToCompare && (
                           <button
@@ -460,7 +683,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
                               ram_gb: alt.ram_gb,
                               ssd_gb: alt.ssd_gb,
                               graphics: alt.graphics,
-                              price_inr: alt.price,
+                              price_inr: alt.price_inr,
                               device_type: alt.device_type
                             })}
                             className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
@@ -474,7 +697,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
                 </div>
               ) : (
                 <div className="p-3 text-xs text-slate-400">
-                  No direct pre-configured alternatives indexed under ₹{price.toLocaleString()}.
+                  No direct alternatives indexed under ₹{(userBudget || price).toLocaleString()}.
                 </div>
               )}
             </div>
@@ -483,7 +706,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({
           {/* Action Row */}
           <div className="pt-3 border-t border-slate-100 dark:border-[#202632] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
             <span className="max-w-xl">
-              Notice: The underlying dataset labels were derived from deterministic hardware rules. This prediction indicates alignment with training data cutoffs and should not replace professional retail procurement advice.
+              Strict Policy: Incompatible sockets, insufficient VRAM, or over-budget listings cannot receive a BUY recommendation.
             </span>
 
             {onAddToCompare && (

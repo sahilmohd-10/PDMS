@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Terminal, ShieldCheck, RefreshCw, 
-  Trash2, Sliders, Info, CheckCircle2
+  Trash2, Sliders, Info, CheckCircle2, Cpu, Zap
 } from 'lucide-react';
 import { hirsApi } from '../services/api';
 import { Toast, type ToastMessage } from '../components/ui/Toast';
@@ -16,6 +16,8 @@ export const Settings: React.FC<SettingsProps> = ({ darkMode, setDarkMode }) => 
   const [apiStatus, setApiStatus] = useState<string | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [engineStatus, setEngineStatus] = useState<any>(null);
+  const [engineConfig, setEngineConfig] = useState<any>(null);
 
   // User Preferences
   const [defaultDevice, setDefaultDevice] = useState<string>(() => {
@@ -26,6 +28,16 @@ export const Settings: React.FC<SettingsProps> = ({ darkMode, setDarkMode }) => 
     return Number(localStorage.getItem('hirs-pref-budget') || 150000);
   });
 
+  useEffect(() => {
+    hirsApi.getEvaluationStatus()
+      .then(res => setEngineStatus(res))
+      .catch(() => {});
+
+    hirsApi.getEvaluationConfig()
+      .then(res => setEngineConfig(res))
+      .catch(() => {});
+  }, []);
+
   const testConnection = async () => {
     setTestingApi(true);
     const start = performance.now();
@@ -34,6 +46,11 @@ export const Settings: React.FC<SettingsProps> = ({ darkMode, setDarkMode }) => 
       const elapsed = Math.round(performance.now() - start);
       setLatencyMs(elapsed);
       setApiStatus(`Connected successfully: ${res.status} (${elapsed}ms)`);
+      
+      // Also refresh engine status
+      const eng = await hirsApi.getEvaluationStatus();
+      setEngineStatus(eng);
+
       setToast({
         id: String(Date.now()),
         type: 'success',
@@ -61,79 +78,179 @@ export const Settings: React.FC<SettingsProps> = ({ darkMode, setDarkMode }) => 
     });
   };
 
-  const handleClearAllData = () => {
-    if (window.confirm("Are you sure you want to clear all locally saved evaluation history and bookmarks?")) {
-      localStorage.removeItem('hirs-recent-evals');
-      localStorage.removeItem('hirs-saved-recommendations');
-      localStorage.removeItem('hirs-dismiss-welcome');
-      setToast({
-        id: String(Date.now()),
-        type: 'info',
-        text: 'All local application cache and saved data cleared.'
-      });
-    }
+  const clearRecentEvaluations = () => {
+    localStorage.removeItem('hirs-recent-evals');
+    setToast({
+      id: String(Date.now()),
+      type: 'info',
+      text: 'Cleared locally stored evaluation history.'
+    });
+  };
+
+  const clearSavedRecommendations = () => {
+    localStorage.removeItem('hirs-saved-recommendations');
+    setToast({
+      id: String(Date.now()),
+      type: 'info',
+      text: 'Cleared saved builds.'
+    });
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      
-      {/* Toast */}
+    <div className="max-w-4xl mx-auto space-y-6 pb-12 text-xs">
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       {/* Header */}
       <div className="pb-4 border-b border-slate-200 dark:border-[#202632]">
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Settings & Documentation
+          System Settings & Evaluation Config
         </h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Configure appearance, manage preferences, verify API connectivity, and review engineering specifications.
+          Manage application appearance, inspect configurable evaluation engine weights, and audit backend telemetry.
         </p>
       </div>
 
-      {/* Preferences Section */}
-      <div className="p-5 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-4">
-        <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-          <Sliders className="w-4 h-4 text-blue-600" />
-          <span>Appearance & Preferences</span>
-        </h2>
-
-        {/* Theme */}
-        <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-[#202632]">
-          <div>
-            <div className="text-xs font-semibold text-slate-900 dark:text-white">
-              Interface Theme
-            </div>
-            <div className="text-[11px] text-slate-500">
-              Toggle between natural Light and high-contrast Dark mode
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setDarkMode(false)}
-              className={`p-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
-                !darkMode ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400'
-              }`}
-            >
-              <Sun className="w-3.5 h-3.5" />
-              <span>Light</span>
-            </button>
-            <button
-              onClick={() => setDarkMode(true)}
-              className={`p-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
-                darkMode ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400'
-              }`}
-            >
-              <Moon className="w-3.5 h-3.5" />
-              <span>Dark</span>
-            </button>
-          </div>
+      {/* Theme Setting */}
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-3">
+        <div>
+          <span className="font-bold text-sm text-slate-900 dark:text-white block">
+            Interface Appearance
+          </span>
+          <p className="text-slate-500 dark:text-slate-400 text-xs">
+            Toggle between light and dark themes. Preference is stored locally.
+          </p>
         </div>
 
-        {/* Default Device & Budget */}
-        <div className="grid sm:grid-cols-2 gap-4 pt-2">
+        <div className="flex gap-3 pt-1">
+          <button
+            type="button"
+            onClick={() => setDarkMode(false)}
+            className={`flex-1 p-3 rounded-lg border flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+              !darkMode
+                ? 'border-blue-500 bg-blue-50/50 text-blue-900 font-semibold'
+                : 'border-slate-200 dark:border-[#202632] text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            <Sun className="w-4 h-4 text-amber-500" />
+            <span>Light Theme</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDarkMode(true)}
+            className={`flex-1 p-3 rounded-lg border flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+              darkMode
+                ? 'border-blue-500 bg-blue-950/30 text-blue-300 font-semibold'
+                : 'border-slate-200 dark:border-[#202632] text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            <Moon className="w-4 h-4 text-blue-400" />
+            <span>Dark Theme</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Evaluation Engine Status & Architecture */}
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-4">
+        <div className="flex items-center justify-between">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">
-              Default Recommendation Form Factor
+            <span className="font-bold text-sm text-slate-900 dark:text-white block flex items-center gap-1.5">
+              <Cpu className="w-4 h-4 text-blue-600" />
+              <span>Evaluation Engine Status</span>
+            </span>
+            <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
+              Real-time operational status of the hybrid deterministic, geometric, and TOPSIS pipeline.
+            </p>
+          </div>
+          {engineStatus && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+              <CheckCircle2 className="w-3 h-3" />
+              <span>{engineStatus.status.toUpperCase()}</span>
+            </span>
+          )}
+        </div>
+
+        {engineStatus && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+            {Object.entries(engineStatus.components || {}).map(([key, val]) => (
+              <div key={key} className="p-2.5 rounded-lg border border-slate-100 dark:border-[#202632] bg-slate-50/50 dark:bg-white/5">
+                <span className="text-[10px] text-slate-400 block font-mono capitalize">{key.replace('_', ' ')}</span>
+                <span className={`text-xs font-bold block mt-0.5 ${val === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                  {String(val)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Workload Weights Display */}
+        {engineConfig && engineConfig.workload_weights && (
+          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-[#202632]">
+            <span className="font-bold text-slate-900 dark:text-white block text-xs flex items-center gap-1">
+              <Zap className="w-3.5 h-3.5 text-blue-500" />
+              <span>Active Workload Weights α(w,j)</span>
+            </span>
+            <div className="grid sm:grid-cols-3 gap-2">
+              {Object.entries(engineConfig.workload_weights).map(([wName, wVals]: [string, any]) => (
+                <div key={wName} className="p-2.5 rounded-lg border border-slate-100 dark:border-[#202632] bg-slate-50/50 dark:bg-white/5 space-y-1">
+                  <span className="font-bold text-slate-900 dark:text-white block text-[11px]">{wName}</span>
+                  <div className="text-[10px] text-slate-500 font-mono space-y-0.5">
+                    <div>CPU: {(wVals.cpu * 100).toFixed(0)}%</div>
+                    <div>GPU: {(wVals.gpu * 100).toFixed(0)}%</div>
+                    <div>RAM: {(wVals.ram * 100).toFixed(0)}%</div>
+                    <div>SSD: {(wVals.ssd * 100).toFixed(0)}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Backend API Connectivity */}
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="font-bold text-sm text-slate-900 dark:text-white block">
+              Backend Health & Latency Test
+            </span>
+            <p className="text-slate-500 dark:text-slate-400 text-xs">
+              Probe the local or remote FastAPI microservice.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={testConnection}
+            disabled={testingApi}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            {testingApi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Terminal className="w-3.5 h-3.5" />}
+            <span>Ping Server</span>
+          </button>
+        </div>
+
+        {apiStatus && (
+          <div className="p-3 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-[#202632] text-xs font-mono text-slate-700 dark:text-slate-300">
+            {apiStatus}
+          </div>
+        )}
+      </div>
+
+      {/* Default User Preferences */}
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-4">
+        <div>
+          <span className="font-bold text-sm text-slate-900 dark:text-white block">
+            Default Recommendation Preferences
+          </span>
+          <p className="text-slate-500 dark:text-slate-400 text-xs">
+            Pre-populate filters when opening the Recommendation generator.
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Default Form Factor
             </label>
             <select
               value={defaultDevice}
@@ -141,16 +258,18 @@ export const Settings: React.FC<SettingsProps> = ({ darkMode, setDarkMode }) => 
               className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
             >
               <option value="Desktop">Desktop PC</option>
-              <option value="Laptop">Laptop</option>
+              <option value="Laptop">Laptop System</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">
-              Default Target Budget (₹ INR)
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Default Budget Target (₹ INR)
             </label>
             <input
               type="number"
+              min={30000}
+              max={600000}
               step={5000}
               value={defaultBudget}
               onChange={(e) => setDefaultBudget(Number(e.target.value))}
@@ -159,120 +278,57 @@ export const Settings: React.FC<SettingsProps> = ({ darkMode, setDarkMode }) => 
           </div>
         </div>
 
-        <div className="pt-2 flex justify-end">
+        <div className="pt-1">
           <button
+            type="button"
             onClick={handleSavePreferences}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer"
+            className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            Save Preferences
+            Save Defaults
           </button>
         </div>
       </div>
 
-      {/* Backend API Connectivity */}
-      <div className="p-5 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-4">
-        <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>API Connectivity & Service Health</span>
-        </h2>
+      {/* Local Storage & Cache Management */}
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-3">
+        <div>
+          <span className="font-bold text-sm text-slate-900 dark:text-white block">
+            Client-Side Cache & Saved Builds
+          </span>
+          <p className="text-slate-500 dark:text-slate-400 text-xs">
+            Clear locally stored recent hardware evaluations or saved build bookmarks.
+          </p>
+        </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-2">
-          <div>
-            <div className="text-xs font-semibold text-slate-900 dark:text-white">
-              Target Backend Service
-            </div>
-            <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-              http://127.0.0.1:8000
-            </div>
-            {apiStatus && (
-              <div className={`text-xs font-semibold mt-1.5 flex items-center gap-1.5 ${
-                apiStatus.includes('successfully') ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-              }`}>
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{apiStatus}</span>
-                {latencyMs !== null && (
-                  <span className="text-[11px] font-mono text-slate-400 font-normal">
-                    (Latency: {latencyMs}ms)
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+        <div className="flex flex-wrap gap-3 pt-1">
+          <button
+            type="button"
+            onClick={clearRecentEvaluations}
+            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+            <span>Clear Evaluation History</span>
+          </button>
 
           <button
-            onClick={testConnection}
-            disabled={testingApi}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-800 dark:text-white bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors flex items-center gap-1.5 cursor-pointer self-start sm:self-center"
+            type="button"
+            onClick={clearSavedRecommendations}
+            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            {testingApi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-            <span>Ping Backend</span>
+            <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+            <span>Clear Saved Builds</span>
           </button>
         </div>
       </div>
 
-      {/* Data Management */}
-      <div className="p-5 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-3">
-        <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-          <Trash2 className="w-4 h-4 text-rose-500" />
-          <span>Local Storage & Cache Management</span>
-        </h2>
-
-        <div className="flex items-center justify-between text-xs py-2">
-          <div>
-            <span className="font-semibold text-slate-900 dark:text-white block">Reset Local Data</span>
-            <span className="text-[11px] text-slate-500">
-              Clears saved recommendations, recent evaluation history, and dismissed banners stored in your browser.
-            </span>
-          </div>
-
-          <button
-            onClick={handleClearAllData}
-            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors cursor-pointer shrink-0"
-          >
-            Clear Data
-          </button>
-        </div>
-      </div>
-
-      {/* Engineering Architecture & Documentation */}
-      <div className="p-5 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-4">
-        <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-          <Terminal className="w-4 h-4 text-blue-500" />
-          <span>HIRS Architecture & Run Instructions</span>
-        </h2>
-
-        <div className="space-y-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-          <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/5 space-y-1.5">
-            <span className="font-bold text-slate-900 dark:text-white block">1. Run Backend Server (FastAPI):</span>
-            <code className="block p-2 rounded bg-slate-900 text-slate-100 font-mono text-[11px]">
-              python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
-            </code>
-          </div>
-
-          <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/5 space-y-1.5">
-            <span className="font-bold text-slate-900 dark:text-white block">2. Run Frontend Server (React + Vite):</span>
-            <code className="block p-2 rounded bg-slate-900 text-slate-100 font-mono text-[11px]">
-              cd frontend && npm run dev
-            </code>
-          </div>
-
-          <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/5 space-y-1.5">
-            <span className="font-bold text-slate-900 dark:text-white block">3. Run Automated Tests:</span>
-            <code className="block p-2 rounded bg-slate-900 text-slate-100 font-mono text-[11px]">
-              python -m pytest backend/tests/test_api.py -v
-            </code>
-          </div>
-        </div>
-      </div>
-
-      {/* About HIRS */}
-      <div className="p-5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-[#202632] text-xs text-slate-600 dark:text-slate-400 space-y-2">
-        <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-          <Info className="w-4 h-4 text-slate-400" />
-          <span>About HIRS (Hardware Intelligence & Recommendation System)</span>
+      {/* Licensing & Attribution */}
+      <div className="p-4 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/60 dark:border-[#202632] text-slate-500 dark:text-slate-400 space-y-1">
+        <span className="font-semibold text-slate-800 dark:text-slate-200 block text-xs flex items-center gap-1.5">
+          <Info className="w-3.5 h-3.5" />
+          <span>About HIRS Intelligence Platform</span>
         </span>
         <p className="leading-relaxed text-[11px]">
-          HIRS v1.0.0 is an artificial intelligence platform designed to evaluate and discover PC and laptop hardware configurations. Predictions are generated by a trained LightGBM gradient-boosted decision forest evaluated against 37,500 holdout tests.
+          HIRS (Hardware Intelligence & Recommendation System) incorporates deterministic component eligibility verification, PassMark/3DMark normalized benchmark geometric indexing, TOPSIS multi-criteria analysis, and gradient boosted models.
         </p>
       </div>
 

@@ -270,3 +270,6 @@ class PredictionService:
             "explanation": explanation,
             "limitations_notice": limitations
         }
+
+prediction_service = PredictionService()
+

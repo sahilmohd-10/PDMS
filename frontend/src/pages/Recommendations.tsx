@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import { 
   Compass, Laptop, Monitor, ArrowRight, Check, 
-  Copy, AlertCircle, RefreshCw, Bookmark, BookmarkCheck
+  Copy, RefreshCw, Bookmark, BookmarkCheck,
+  Zap, Award, TrendingUp, Sliders, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { hirsApi } from '../services/api';
-import type { HardwareItem, RecommendResponse, SavedBuild } from '../types';
+import type { 
+  RecommendationCandidate, 
+  EvaluationRecommendResponse, 
+  WorkloadType,
+  SavedBuild 
+} from '../types';
 import { Toast, type ToastMessage } from '../components/ui/Toast';
 
 interface RecommendationsProps {
@@ -19,16 +25,16 @@ export const Recommendations: React.FC<RecommendationsProps> = ({
   // Form State
   const [deviceType, setDeviceType] = useState<'Desktop' | 'Laptop'>('Desktop');
   const [budget, setBudget] = useState<number>(150000);
-  const [workloads, setWorkloads] = useState<string[]>(['Programming', 'Gaming']);
+  const [workload, setWorkload] = useState<WorkloadType>('Gaming');
   const [minRam, setMinRam] = useState<number>(16);
   const [minSsd, setMinSsd] = useState<number>(512);
-  const [gpuPref, setGpuPref] = useState<string>('Dedicated GPU');
-  const [cpuPref, setCpuPref] = useState<string>('Any');
+  const [minVram, setMinVram] = useState<number>(6);
 
   // Loading, Results & Feedback
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<RecommendResponse | null>(null);
+  const [results, setResults] = useState<EvaluationRecommendResponse | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showTopsisDetails, setShowTopsisDetails] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(() => {
     try {
       const saved: SavedBuild[] = JSON.parse(localStorage.getItem('hirs-saved-recommendations') || '[]');
@@ -41,48 +47,35 @@ export const Recommendations: React.FC<RecommendationsProps> = ({
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const budgetPresets = [
-    { label: '₹50,000', value: 50000 },
-    { label: '₹80,000', value: 80000 },
-    { label: '₹1,20,000', value: 120000 },
-    { label: '₹1,60,000', value: 160000 },
-    { label: '₹2,20,000', value: 220000 },
-    { label: '₹3,00,000', value: 300000 },
+    { label: '₹60,000', value: 60000 },
+    { label: '₹90,000', value: 90000 },
+    { label: '₹1,30,000', value: 130000 },
+    { label: '₹1,80,000', value: 180000 },
+    { label: '₹2,50,000', value: 250000 },
+    { label: '₹3,50,000', value: 350000 },
   ];
 
-  const availableWorkloads = [
-    { id: 'Office / Productivity', desc: 'Documents, web browsing, administrative tools' },
-    { id: 'Programming', desc: 'Development environments, local containers, compilation' },
-    { id: 'Data Analytics', desc: 'Large tabular datasets, SQL, Python data workflows' },
-    { id: 'Machine Learning', desc: 'Scikit-learn, parallel multi-core CPU algorithms' },
-    { id: 'AI / Deep Learning', desc: 'CUDA-enabled dedicated GPU with minimum 12 GB VRAM' },
-    { id: 'Gaming', desc: 'Dedicated high-bandwidth graphics for modern titles' },
-    { id: 'Video Editing', desc: 'High RAM and SSD bandwidth for 4K rendering' },
-    { id: 'General Purpose', desc: 'Standard multipurpose household or study use' },
+  const workloadsList: { type: WorkloadType; label: string; desc: string }[] = [
+    { type: 'Gaming', label: 'Gaming', desc: 'Heavy GPU focus with fast storage and high VRAM' },
+    { type: 'Programming', label: 'Programming & Dev', desc: 'Multi-threaded CPU compilation and container RAM' },
+    { type: 'Data Analytics', label: 'Data Analytics', desc: 'High RAM memory capacity and parallel CPU processing' },
+    { type: 'Deep Learning', label: 'AI / Deep Learning', desc: 'CUDA compute with dedicated high-bandwidth VRAM' },
+    { type: 'Video Editing', label: 'Video Editing', desc: 'Balanced high RAM bandwidth and GPU render pipelines' },
+    { type: 'Office', label: 'Office & Productivity', desc: 'Balanced, cost-effective administrative workflow' },
   ];
-
-  const toggleWorkload = (id: string) => {
-    if (workloads.includes(id)) {
-      if (workloads.length > 1) {
-        setWorkloads(workloads.filter(w => w !== id));
-      }
-    } else {
-      setWorkloads([...workloads, id]);
-    }
-  };
 
   const handleGenerate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setLoading(true);
     try {
-      const res = await hirsApi.recommendHardware({
+      const res = await hirsApi.evaluateRecommend({
         budget_inr: budget,
         device_type: deviceType,
-        workload: workloads,
+        workload: workload,
         min_ram_gb: minRam,
         min_ssd_gb: minSsd,
-        gpu_preference: gpuPref,
-        cpu_preference: cpuPref,
-        limit: 6
+        min_vram_gb: minVram,
+        limit: 8
       });
       setResults(res);
     } catch (err: any) {
@@ -96,34 +89,28 @@ export const Recommendations: React.FC<RecommendationsProps> = ({
     }
   };
 
-  const copyConfigText = (item: HardwareItem) => {
-    const text = `${item.name}\nCPU: ${item.cpu} (${item.cores} Cores)\nRAM: ${item.ram_gb} GB ${item.ram_type}\nSSD: ${item.ssd_gb} GB\nGPU: ${item.graphics} (${item.vram_gb} GB VRAM)\nPrice: ₹${item.price.toLocaleString()} INR`;
+  const copyConfigText = (item: RecommendationCandidate) => {
+    const text = `${item.name}\nCPU: ${item.cpu} (${item.cores} Cores)\nRAM: ${item.ram_gb} GB ${item.ram_type}\nSSD: ${item.ssd_gb} GB\nGPU: ${item.graphics} (${item.vram_gb} GB VRAM)\nPrice: ₹${item.price_inr.toLocaleString()} INR\nTOPSIS Closeness: ${item.topsis_score.toFixed(3)}`;
     navigator.clipboard.writeText(text);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);
     setToast({
       id: String(Date.now()),
-      type: 'success',
-      text: 'Configuration specifications copied to clipboard.'
+      type: 'info',
+      text: 'Hardware configuration copied to clipboard.'
     });
   };
 
-  const toggleSaveBuild = (item: HardwareItem) => {
+  const toggleSaveBuild = (item: RecommendationCandidate) => {
     try {
       const existing: SavedBuild[] = JSON.parse(localStorage.getItem('hirs-saved-recommendations') || '[]');
-      if (savedIds.has(item.id)) {
-        const filtered = existing.filter(b => b.id !== item.id);
-        localStorage.setItem('hirs-saved-recommendations', JSON.stringify(filtered));
-        setSavedIds(prev => {
-          const next = new Set(prev);
-          next.delete(item.id);
-          return next;
-        });
-        setToast({
-          id: String(Date.now()),
-          type: 'info',
-          text: `Removed '${item.name}' from saved recommendations.`
-        });
+      let updated: SavedBuild[];
+      const isSaved = savedIds.has(item.id);
+
+      if (isSaved) {
+        updated = existing.filter(s => s.id !== item.id);
+        savedIds.delete(item.id);
+        setToast({ id: String(Date.now()), type: 'info', text: 'Build removed from saved list.' });
       } else {
         const newBuild: SavedBuild = {
           id: item.id,
@@ -132,224 +119,205 @@ export const Recommendations: React.FC<RecommendationsProps> = ({
           graphics: item.graphics,
           ram_gb: item.ram_gb,
           ssd_gb: item.ssd_gb,
-          price_inr: item.price,
+          price_inr: item.price_inr,
           device_type: item.device_type,
-          tag: item.tag,
-          saved_at: new Date().toISOString()
+          tag: item.category_tag,
+          saved_at: new Date().toLocaleDateString()
         };
-        const updated = [newBuild, ...existing];
-        localStorage.setItem('hirs-saved-recommendations', JSON.stringify(updated));
-        setSavedIds(prev => new Set(prev).add(item.id));
-        setToast({
-          id: String(Date.now()),
-          type: 'success',
-          text: `Saved '${item.name}' to your dashboard!`
-        });
+        updated = [newBuild, ...existing];
+        savedIds.add(item.id);
+        setToast({ id: String(Date.now()), type: 'success', text: 'Build saved to your personal list.' });
       }
-    } catch (err) {
-      console.error(err);
+
+      setSavedIds(new Set(savedIds));
+      localStorage.setItem('hirs-saved-recommendations', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
     }
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      
-      {/* Toast Notification */}
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       {/* Header */}
       <div className="pb-4 border-b border-slate-200 dark:border-[#202632]">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Smart Hardware Recommendations
-        </h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Specify your budget ceiling and workflow requirements. HIRS discovers and ranks candidate builds.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              TOPSIS Hardware Recommendations
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Multi-Criteria Decision Analysis (TOPSIS) ranking candidates across performance, value index, price, and memory capacity.
+            </p>
+          </div>
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Strict Budget Pre-Filtering</span>
+          </span>
+        </div>
       </div>
 
-      {/* Guided Input Form */}
-      <form onSubmit={handleGenerate} className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-6">
+      {/* Input Form */}
+      <form onSubmit={handleGenerate} className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-5 text-xs">
         
-        {/* Device Form Factor */}
-        <div className="space-y-2">
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            1. Device Type
+        {/* Device Type Toggle */}
+        <div className="space-y-1.5">
+          <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+            Target Form Factor:
           </label>
-          <div className="grid sm:grid-cols-2 gap-3 max-w-lg">
+          <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setDeviceType('Desktop')}
-              className={`p-3.5 rounded-lg border text-left flex items-center gap-3 transition-colors cursor-pointer ${
+              className={`flex-1 p-3 rounded-lg border text-left flex items-center gap-3 transition-colors cursor-pointer ${
                 deviceType === 'Desktop'
-                  ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-950/20 text-blue-900 dark:text-blue-200 font-semibold'
-                  : 'border-slate-200 dark:border-[#202632] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
+                  ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 text-blue-900 dark:text-blue-100 font-semibold'
+                  : 'border-slate-200 dark:border-[#202632] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
               }`}
             >
-              <Monitor className="w-5 h-5 text-slate-500 shrink-0" />
+              <Monitor className="w-4 h-4 text-blue-600 shrink-0" />
               <div>
-                <div className="text-xs font-bold">Desktop PC</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">984,000+ candidate catalogue configs</div>
+                <span className="block text-xs">Desktop PC Configuration</span>
+                <span className="text-[10px] text-slate-400 block font-normal">Higher sustained TDP & expandability</span>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => setDeviceType('Laptop')}
-              className={`p-3.5 rounded-lg border text-left flex items-center gap-3 transition-colors cursor-pointer ${
+              className={`flex-1 p-3 rounded-lg border text-left flex items-center gap-3 transition-colors cursor-pointer ${
                 deviceType === 'Laptop'
-                  ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-950/20 text-blue-900 dark:text-blue-200 font-semibold'
-                  : 'border-slate-200 dark:border-[#202632] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
+                  ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 text-blue-900 dark:text-blue-100 font-semibold'
+                  : 'border-slate-200 dark:border-[#202632] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
               }`}
             >
-              <Laptop className="w-5 h-5 text-slate-500 shrink-0" />
+              <Laptop className="w-4 h-4 text-blue-600 shrink-0" />
               <div>
-                <div className="text-xs font-bold">Laptop</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">99 records in source dataset</div>
+                <span className="block text-xs">Laptop System</span>
+                <span className="text-[10px] text-slate-400 block font-normal">Integrated display & mobile thermal constraints</span>
               </div>
             </button>
           </div>
         </div>
 
-        {/* Budget Selection */}
-        <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-[#202632]">
-          <div className="flex justify-between items-baseline">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              2. Maximum Budget (INR)
+        {/* Budget Input & Presets */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+              Maximum Budget (₹ INR):
             </label>
-            <span className="text-xs text-slate-500 font-medium">Strict ceiling (never exceeded)</span>
+            <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">
+              ₹{budget.toLocaleString('en-IN')}
+            </span>
           </div>
+          
+          <input
+            type="number"
+            min={30000}
+            max={800000}
+            step={5000}
+            value={budget}
+            onChange={(e) => setBudget(Number(e.target.value))}
+            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+            required
+          />
 
-          <div className="flex items-center gap-3 max-w-sm">
-            <span className="text-xl font-bold text-slate-900 dark:text-white">₹</span>
-            <input
-              type="number"
-              min={25000}
-              max={600000}
-              step={5000}
-              value={budget}
-              onChange={(e) => setBudget(Number(e.target.value))}
-              className="w-full text-base font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-[#202632] rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            {budgetPresets.map((preset) => (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {budgetPresets.map((bp, i) => (
               <button
-                key={preset.value}
+                key={i}
                 type="button"
-                onClick={() => setBudget(preset.value)}
-                className={`py-1 px-2.5 rounded text-xs font-medium transition-colors cursor-pointer ${
-                  budget === preset.value
-                    ? 'bg-blue-600 text-white font-semibold'
-                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                onClick={() => setBudget(bp.value)}
+                className={`text-[11px] px-2.5 py-0.5 rounded font-medium transition-colors cursor-pointer ${
+                  budget === bp.value
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
                 }`}
               >
-                {preset.label}
+                {bp.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Workload Selection */}
-        <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-[#202632]">
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            3. Intended Usage (Select all that apply)
+        {/* Workload Profile Selector */}
+        <div className="space-y-1.5">
+          <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+            Target Workload Benchmark Profile:
           </label>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {availableWorkloads.map((w) => {
-              const active = workloads.includes(w.id);
-              return (
-                <button
-                  key={w.id}
-                  type="button"
-                  onClick={() => toggleWorkload(w.id)}
-                  className={`p-3 rounded-lg border text-left transition-colors cursor-pointer ${
-                    active
-                      ? 'border-blue-600 bg-blue-50/30 dark:bg-blue-950/20 text-blue-900 dark:text-blue-200'
-                      : 'border-slate-200 dark:border-[#202632] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span>{w.id}</span>
-                    <div className={`w-3.5 h-3.5 rounded flex items-center justify-center ${active ? 'bg-blue-600 text-white' : 'border border-slate-300 dark:border-slate-600'}`}>
-                      {active && <Check className="w-2.5 h-2.5" />}
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-tight">
-                    {w.desc}
-                  </p>
-                </button>
-              );
-            })}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {workloadsList.map((w) => (
+              <button
+                key={w.type}
+                type="button"
+                onClick={() => setWorkload(w.type)}
+                className={`p-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
+                  workload === w.type
+                    ? 'border-blue-500 bg-blue-50/40 dark:bg-blue-950/20 text-blue-900 dark:text-blue-100 font-semibold'
+                    : 'border-slate-200 dark:border-[#202632] hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <span className="block text-xs">{w.label}</span>
+                <span className="text-[10px] text-slate-400 block font-normal leading-tight mt-0.5">{w.desc}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Hardware Minimums & Preferences */}
-        <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-[#202632]">
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            4. Component Preferences (Optional)
-          </label>
+        {/* Hardware Minimum Constraints */}
+        <div className="grid sm:grid-cols-3 gap-3 pt-1">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Minimum RAM (GB)
+            </label>
+            <select
+              value={minRam}
+              onChange={(e) => setMinRam(Number(e.target.value))}
+              className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+            >
+              <option value={8}>8 GB</option>
+              <option value={16}>16 GB (Recommended)</option>
+              <option value={32}>32 GB (Heavy Workloads)</option>
+              <option value={64}>64 GB (Workstation)</option>
+            </select>
+          </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Minimum RAM</label>
-              <select
-                value={minRam}
-                onChange={(e) => setMinRam(Number(e.target.value))}
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
-              >
-                <option value={8}>8 GB</option>
-                <option value={16}>16 GB</option>
-                <option value={32}>32 GB</option>
-                <option value={64}>64 GB</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Minimum SSD (GB)
+            </label>
+            <select
+              value={minSsd}
+              onChange={(e) => setMinSsd(Number(e.target.value))}
+              className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+            >
+              <option value={256}>256 GB</option>
+              <option value={512}>512 GB</option>
+              <option value={1000}>1,000 GB (1 TB)</option>
+              <option value={2000}>2,000 GB (2 TB)</option>
+            </select>
+          </div>
 
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Minimum SSD</label>
-              <select
-                value={minSsd}
-                onChange={(e) => setMinSsd(Number(e.target.value))}
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
-              >
-                <option value={256}>256 GB</option>
-                <option value={512}>512 GB</option>
-                <option value={1000}>1,000 GB (1 TB)</option>
-                <option value={2000}>2,000 GB (2 TB)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Graphics Preference</label>
-              <select
-                value={gpuPref}
-                onChange={(e) => setGpuPref(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
-              >
-                <option value="Any">Any GPU</option>
-                <option value="Dedicated GPU">Dedicated GPU Required</option>
-                <option value="NVIDIA">NVIDIA Preferred</option>
-                <option value="AMD">AMD Preferred</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">CPU Preference</label>
-              <select
-                value={cpuPref}
-                onChange={(e) => setCpuPref(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
-              >
-                <option value="Any">Any Processor</option>
-                <option value="AMD">AMD Ryzen</option>
-                <option value="Intel">Intel Core</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Minimum VRAM (GB)
+            </label>
+            <select
+              value={minVram}
+              onChange={(e) => setMinVram(Number(e.target.value))}
+              className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none"
+            >
+              <option value={0}>Any / Integrated</option>
+              <option value={6}>6 GB (1080p Entry)</option>
+              <option value={8}>8 GB (1080p Ultra / 1440p)</option>
+              <option value={12}>12 GB (AI & 1440p High)</option>
+              <option value={16}>16 GB (Heavy Compute)</option>
+            </select>
           </div>
         </div>
 
-        {/* Action Button */}
+        {/* Submit */}
         <div className="pt-2">
           <button
             type="submit"
@@ -359,13 +327,10 @@ export const Recommendations: React.FC<RecommendationsProps> = ({
             {loading ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Evaluating Candidates...</span>
+                <span>Running TOPSIS Multi-Criteria Ranking...</span>
               </>
             ) : (
-              <>
-                <span>Generate Recommendations</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </>
+              <span>Discover Ranked Configurations</span>
             )}
           </button>
         </div>
@@ -373,194 +338,227 @@ export const Recommendations: React.FC<RecommendationsProps> = ({
 
       {/* Results Section */}
       {results && (
-        <section className="space-y-4">
-          
-          {/* Summary Banner */}
-          <div className="p-4 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-slate-900 dark:text-white">
-                Ceiling: ₹{results.budget_inr.toLocaleString()} INR
-              </span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-600 dark:text-slate-300">{results.device_type}</span>
-              <span className="text-slate-400">•</span>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                {results.total_candidates_matched.toLocaleString()} matching candidate builds
-              </span>
-            </div>
+        <div className="space-y-6">
 
-            <span className="text-[11px] text-slate-500 font-mono">
-              0.0% budget violation guarantee
-            </span>
+          {/* Top 3 Categorized Winner Cards */}
+          <div className="grid sm:grid-cols-3 gap-4">
+            
+            {/* Best Balanced Choice (TOPSIS Winner) */}
+            {results.best_balanced && (
+              <div className="p-4 rounded-xl bg-gradient-to-b from-blue-50/80 to-white dark:from-blue-950/20 dark:to-[#11141A] border-2 border-blue-500/80 dark:border-blue-500/60 flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-blue-600 text-white">
+                    <Award className="w-3 h-3" />
+                    Best Balanced Choice
+                  </span>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm" title={results.best_balanced.name}>
+                    {results.best_balanced.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                    {results.best_balanced.recommendation_reason}
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-blue-100 dark:border-blue-900/30 flex items-center justify-between">
+                  <span className="text-base font-mono font-bold text-blue-600 dark:text-blue-400">
+                    ₹{results.best_balanced.price_inr.toLocaleString()}
+                  </span>
+                  <span className="text-[11px] font-mono font-semibold text-slate-500">
+                    TOPSIS: {results.best_balanced.topsis_score.toFixed(3)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Best Performance */}
+            {results.best_performance && (
+              <div className="p-4 rounded-xl bg-gradient-to-b from-purple-50/80 to-white dark:from-purple-950/20 dark:to-[#11141A] border border-purple-300 dark:border-purple-800/60 flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-purple-600 text-white">
+                    <Zap className="w-3 h-3" />
+                    Best Performance
+                  </span>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm" title={results.best_performance.name}>
+                    {results.best_performance.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                    {results.best_performance.recommendation_reason}
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-purple-100 dark:border-purple-900/30 flex items-center justify-between">
+                  <span className="text-base font-mono font-bold text-purple-600 dark:text-purple-400">
+                    ₹{results.best_performance.price_inr.toLocaleString()}
+                  </span>
+                  <span className="text-[11px] font-mono font-semibold text-slate-500">
+                    P(i,w): {results.best_performance.performance_score.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Best Value */}
+            {results.best_value && (
+              <div className="p-4 rounded-xl bg-gradient-to-b from-emerald-50/80 to-white dark:from-emerald-950/20 dark:to-[#11141A] border border-emerald-300 dark:border-emerald-800/60 flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-emerald-600 text-white">
+                    <TrendingUp className="w-3 h-3" />
+                    Best Value
+                  </span>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm" title={results.best_value.name}>
+                    {results.best_value.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                    {results.best_value.recommendation_reason}
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/30 flex items-center justify-between">
+                  <span className="text-base font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    ₹{results.best_value.price_inr.toLocaleString()}
+                  </span>
+                  <span className="text-[11px] font-mono font-semibold text-slate-500">
+                    VI: {results.best_value.relative_value_index.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+            )}
+
           </div>
 
-          {/* Fallback Notice if triggered */}
-          {results.notice && (
-            <div className="p-3.5 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-              <span>{results.notice}</span>
+          {/* All Ranked Recommendations Table / Cards */}
+          <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                All Ranked Eligible Candidates ({results.ranked_candidates.length} Configurations within ₹{results.budget_inr.toLocaleString()} Budget)
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowTopsisDetails(!showTopsisDetails)}
+                className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>{showTopsisDetails ? 'Hide TOPSIS Details' : 'View TOPSIS Criteria & Weights'}</span>
+                {showTopsisDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
             </div>
-          )}
 
-          {/* Empty Candidates State */}
-          {results.recommendations.length === 0 ? (
-            <div className="p-8 text-center rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632]">
-              <Compass className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">No Candidate Builds Matched</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
-                No configurations in the catalogue met all your specific constraints within ₹{results.budget_inr.toLocaleString()}. Try increasing the budget or relaxing RAM/SSD preferences.
-              </p>
-            </div>
-          ) : (
-            /* Cards Grid */
-            <div className="grid md:grid-cols-2 gap-4">
-              {results.recommendations.map((item) => {
-                const remainingBudget = results.budget_inr - item.price;
-                const isBestOverall = item.tag === 'Best Overall';
-                const isBestValue = item.tag === 'Best Value';
-                const isBestPerf = item.tag === 'Best Performance';
+            {/* Collapsible TOPSIS Methodology */}
+            {showTopsisDetails && (
+              <div className="p-4 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-[#202632] text-xs font-mono space-y-2">
+                <span className="font-bold text-slate-900 dark:text-white block">TOPSIS Vector Normalization Methodology:</span>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                  {results.methodology_note}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-200 dark:border-white/10 text-[10px]">
+                  {Object.entries(results.topsis_weights_used).map(([key, weight]) => (
+                    <div key={key} className="p-1.5 rounded bg-white dark:bg-black/40">
+                      <span className="text-slate-400 block">{key}</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{(weight * 100).toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                let badgeStyle = 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300';
-                if (isBestOverall) badgeStyle = 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-700/60';
-                else if (isBestValue) badgeStyle = 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60';
-                else if (isBestPerf) badgeStyle = 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700/60';
+            {/* Candidate List */}
+            <div className="space-y-3">
+              {results.ranked_candidates.map((c, idx) => (
+                <div key={c.id} className="p-4 rounded-lg border border-slate-200 dark:border-[#202632] bg-slate-50/40 dark:bg-white/5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+                  
+                  <div className="space-y-1 max-w-xl">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 dark:text-white text-sm">
+                        #{idx + 1} {c.name}
+                      </span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-300">
+                        {c.category_tag}
+                      </span>
+                    </div>
+                    
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {c.cpu} ({c.cores} Cores) • {c.graphics} ({c.vram_gb} GB VRAM) • {c.ram_gb} GB {c.ram_type} • {c.ssd_gb} GB SSD
+                    </p>
+                    
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 italic">
+                      {c.recommendation_reason}
+                    </p>
+                  </div>
 
-                const isSaved = savedIds.has(item.id);
-
-                return (
-                  <div
-                    key={item.id}
-                    className="p-5 rounded-xl bg-white dark:bg-[#11141A] border border-slate-200 dark:border-[#202632] flex flex-col justify-between space-y-4"
-                  >
-                    <div>
-                      {/* Badge and Rank */}
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-bold text-slate-400">
-                            #{item.rank}
-                          </span>
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${badgeStyle}`}>
-                            {item.tag}
-                          </span>
-                        </div>
-                        <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
-                          {(item.buy_probability * 100).toFixed(1)}% BUY Prob
-                        </span>
-                      </div>
-
-                      {/* Build Title */}
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                        {item.name}
-                      </h3>
-
-                      {/* Price and Remaining */}
-                      <div className="mt-2 flex items-baseline justify-between">
-                        <span className="text-xl font-bold text-slate-900 dark:text-white">
-                          ₹{item.price.toLocaleString()}
-                        </span>
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                          ₹{remainingBudget.toLocaleString()} under budget
-                        </span>
-                      </div>
-
-                      {/* Specifications Table */}
-                      <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-[#202632] grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">CPU</span>
-                          <span className="font-medium text-slate-800 dark:text-slate-200 truncate block" title={item.cpu}>
-                            {item.cpu}
-                          </span>
-                          <span className="text-[11px] text-slate-500">{item.cores} Cores</span>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Graphics</span>
-                          <span className="font-medium text-slate-800 dark:text-slate-200 truncate block" title={item.graphics}>
-                            {item.graphics}
-                          </span>
-                          <span className="text-[11px] text-slate-500">{item.vram_gb} GB VRAM</span>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">RAM</span>
-                          <span className="font-medium text-slate-800 dark:text-slate-200">
-                            {item.ram_gb} GB {item.ram_type}
-                          </span>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Storage</span>
-                          <span className="font-medium text-slate-800 dark:text-slate-200">
-                            {item.ssd_gb} GB SSD
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Explanation */}
-                      <p className="mt-3.5 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-white/5 p-3 rounded-lg leading-relaxed">
-                        {item.recommendation_reason}
-                      </p>
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto shrink-0 gap-2">
+                    <div className="text-left sm:text-right">
+                      <span className="text-base font-mono font-bold text-slate-900 dark:text-white block">
+                        ₹{c.price_inr.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">
+                        TOPSIS: {c.topsis_score.toFixed(3)} | VI: {c.relative_value_index.toFixed(1)}
+                      </span>
                     </div>
 
-                    {/* Card Actions */}
-                    <div className="pt-3 border-t border-slate-100 dark:border-[#202632] flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => onAnalyzeConfig({
-                          cpu: item.cpu,
-                          ram_gb: item.ram_gb,
-                          ssd_gb: item.ssd_gb,
-                          graphics: item.graphics,
-                          price_inr: item.price,
-                          device_type: item.device_type
-                        })}
-                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                        type="button"
+                        onClick={() => toggleSaveBuild(c)}
+                        className="p-1.5 rounded-lg border border-slate-200 dark:border-[#202632] hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                        title="Save configuration"
                       >
-                        Inspect in Analyzer
+                        {savedIds.has(c.id) ? (
+                          <BookmarkCheck className="w-3.5 h-3.5 text-blue-600" />
+                        ) : (
+                          <Bookmark className="w-3.5 h-3.5" />
+                        )}
                       </button>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => toggleSaveBuild(item)}
-                          className={`p-1.5 rounded transition-colors cursor-pointer flex items-center gap-1 ${
-                            isSaved 
-                              ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' 
-                              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                          }`}
-                          title={isSaved ? "Saved to Dashboard" : "Save build"}
-                        >
-                          {isSaved ? <BookmarkCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> : <Bookmark className="w-3.5 h-3.5" />}
-                          <span className="text-[11px] font-medium hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
-                        </button>
+                      <button
+                        type="button"
+                        onClick={() => copyConfigText(c)}
+                        className="p-1.5 rounded-lg border border-slate-200 dark:border-[#202632] hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                        title="Copy configuration text"
+                      >
+                        {copiedId === c.id ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
 
-                        <button
-                          onClick={() => onAddToCompare({
-                            cpu: item.cpu,
-                            ram_gb: item.ram_gb,
-                            ssd_gb: item.ssd_gb,
-                            graphics: item.graphics,
-                            price_inr: item.price,
-                            device_type: item.device_type
-                          })}
-                          className="px-2.5 py-1 rounded text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                        >
-                          Compare
-                        </button>
+                      <button
+                        type="button"
+                        onClick={() => onAddToCompare({
+                          cpu: c.cpu,
+                          ram_gb: c.ram_gb,
+                          ssd_gb: c.ssd_gb,
+                          graphics: c.graphics,
+                          price_inr: c.price_inr,
+                          device_type: c.device_type
+                        })}
+                        className="px-2.5 py-1.5 rounded-lg text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 font-semibold text-[11px] transition-colors cursor-pointer"
+                      >
+                        Compare
+                      </button>
 
-                        <button
-                          onClick={() => copyConfigText(item)}
-                          className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
-                          title="Copy specifications"
-                        >
-                          {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onAnalyzeConfig({
+                          cpu: c.cpu,
+                          ram_gb: c.ram_gb,
+                          ssd_gb: c.ssd_gb,
+                          graphics: c.graphics,
+                          price_inr: c.price_inr,
+                          device_type: c.device_type
+                        })}
+                        className="px-2.5 py-1.5 rounded-lg text-white bg-blue-600 hover:bg-blue-700 font-semibold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <span>Evaluate</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
                     </div>
+
                   </div>
-                );
-              })}
+
+                </div>
+              ))}
             </div>
-          )}
-        </section>
+
+          </div>
+
+        </div>
       )}
 
     </div>

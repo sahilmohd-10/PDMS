@@ -1,0 +1,15 @@
+{
+  "mae": 31800.334499085824,
+  "rmse": 41732.51004610911,
+  "mape_pct": 15.809021893718084,
+  "features": [
+    "cores",
+    "ram_gb",
+    "ssd_gb",
+    "vram_gb",
+    "is_integrated",
+    "is_desktop"
+  ],
+  "train_samples": 120000,
+  "test_samples": 30000
+}
