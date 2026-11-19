@@ -1,0 +1,62 @@
+{
+  "file": "d:\\Downloads\\PDMS\\Dataset.csv",
+  "file_size_mb": 167.23,
+  "total_rows": 1048575,
+  "columns": [
+    "CPU",
+    "RAM",
+    "SSD",
+    "GRAPHICS",
+    "PRICE",
+    "BUY"
+  ],
+  "column_count": 6,
+  "null_counts": {
+    "CPU": 0,
+    "RAM": 0,
+    "SSD": 0,
+    "GRAPHICS": 0,
+    "PRICE": 0,
+    "BUY": 0
+  },
+  "empty_string_counts": {
+    "CPU": 0,
+    "RAM": 0,
+    "SSD": 0,
+    "GRAPHICS": 0
+  },
+  "buy_distribution": {
+    "0": 943901,
+    "1": 104674
+  },
+  "buy_rate": 0.0998,
+  "invalid_buy_values": 0,
+  "price_stats": {
+    "min": 23990.0,
+    "max": 572846.25,
+    "mean": 172711.27,
+    "median": 162943.77,
+    "std": 57149.6,
+    "zero_or_negative": 0,
+    "null_count": 0
+  },
+  "device_types": {
+    "Desktop": 1048476,
+    "Laptop": 99
+  },
+  "cardinality": {
+    "unique_cpus": 502,
+    "unique_rams": 293,
+    "unique_ssds": 102,
+    "unique_gpus": 610,
+    "theoretical_combinations": 9151690920
+  },
+  "unique_rows": 1048575,
+  "duplicate_rows": 0,
+  "label_rule_detection": {
+    "best_rule": "cores >= 8 AND vram >= 6 AND price <= 180000",
+    "best_rule_accuracy": 0.9093,
+    "likely_deterministic": false
+  },
+  "audit_duration_seconds": 1.44
+}

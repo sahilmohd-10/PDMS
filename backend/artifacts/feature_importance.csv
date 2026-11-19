@@ -1,0 +1,17 @@
+feature,importance
+value_score,18.65
+price_per_vram_gb,13.87
+price_per_ram_gb,13.35
+price_per_core,12.95
+ssd_gb,9.48
+PRICE,9.17
+cores,6.62
+ram_gb,5.45
+vram_gb,4.47
+storage_to_ram_ratio,3.47
+hardware_score,1.97
+cpu_family,0.5
+cpu_brand,0.03
+gpu_brand,0.03
+device_type,0.0
+ram_type,0.0

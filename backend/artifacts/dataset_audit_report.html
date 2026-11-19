@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>HIRS Dataset Audit Report</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0B0F17; color: #E2E8F0; padding: 30px; margin: 0; }
+        .container { max-width: 900px; margin: 0 auto; background: #131A26; padding: 32px; border-radius: 12px; border: 1px solid #1E293B; }
+        h1 { color: #60A5FA; font-size: 24px; margin-top: 0; }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; background: #1E293B; color: #94A3B8; margin-right: 8px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 24px 0; }
+        .card { background: #182234; padding: 18px; border-radius: 8px; border: 1px solid #243247; }
+        .card .title { font-size: 13px; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card .value { font-size: 24px; font-weight: 700; color: #F8FAFC; margin-top: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #243247; font-size: 14px; }
+        th { color: #94A3B8; font-weight: 600; background: #182234; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>HIRS Dataset Quality & Integrity Audit</h1>
+    <div style="margin-bottom: 20px;">
+        <span class="badge">Source: d:\Downloads\PDMS\Dataset.csv</span>
+        <span class="badge">Size: 167.23 MB</span>
+        <span class="badge">Audited: 2026-11-19 18:30:36</span>
+    </div>
+    
+    <div class="grid">
+        <div class="card">
+            <div class="title">Total Rows</div>
+            <div class="value">1,048,575</div>
+        </div>
+        <div class="card">
+            <div class="title">BUY Class Rate</div>
+            <div class="value">9.98%</div>
+        </div>
+        <div class="card">
+            <div class="title">Unique Records</div>
+            <div class="value">1,048,575</div>
+        </div>
+        <div class="card">
+            <div class="title">Average Price</div>
+            <div class="value">₹172,711</div>
+        </div>
+    </div>
+
+    <h3>Device Breakdown</h3>
+    <table>
+        <tr><th>Device Type</th><th>Count</th><th>Share</th></tr>
+        <tr><td>Desktop</td><td>1,048,476</td><td>99.99%</td></tr>
+        <tr><td>Laptop</td><td>99</td><td>0.0094%</td></tr>
+    </table>
+
+    <h3 style="margin-top: 30px;">Columns & Missing Values</h3>
+    <table>
+        <tr><th>Column</th><th>Null Count</th><th>Empty String Count</th></tr>
+        <tr><td>CPU</td><td>0</td><td>0</td></tr><tr><td>RAM</td><td>0</td><td>0</td></tr><tr><td>SSD</td><td>0</td><td>0</td></tr><tr><td>GRAPHICS</td><td>0</td><td>0</td></tr><tr><td>PRICE</td><td>0</td><td>0</td></tr><tr><td>BUY</td><td>0</td><td>0</td></tr>
+    </table>
+</div>
+</body>
+</html>

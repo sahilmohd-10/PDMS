@@ -1,0 +1,53 @@
+{
+  "model_architecture": "LightGBM",
+  "framework": "LightGBM",
+  "training_rows": 175000,
+  "validation_rows": 37500,
+  "test_rows": 37500,
+  "input_features": [
+    "cores",
+    "ram_gb",
+    "ssd_gb",
+    "vram_gb",
+    "PRICE",
+    "price_per_core",
+    "price_per_ram_gb",
+    "price_per_vram_gb",
+    "storage_to_ram_ratio",
+    "hardware_score",
+    "value_score",
+    "device_type",
+    "cpu_brand",
+    "cpu_family",
+    "gpu_brand",
+    "ram_type"
+  ],
+  "numeric_features": [
+    "cores",
+    "ram_gb",
+    "ssd_gb",
+    "vram_gb",
+    "PRICE",
+    "price_per_core",
+    "price_per_ram_gb",
+    "price_per_vram_gb",
+    "storage_to_ram_ratio",
+    "hardware_score",
+    "value_score"
+  ],
+  "categorical_features": [
+    "device_type",
+    "cpu_brand",
+    "cpu_family",
+    "gpu_brand",
+    "ram_type"
+  ],
+  "target": "BUY (binary 0/1)",
+  "accuracy": 0.9982,
+  "f1": 0.9909,
+  "roc_auc": 1.0,
+  "brier_score": 0.0014,
+  "budget_violation_rate": 0.0,
+  "training_date": "2026-11-19 18:34:27",
+  "status": "ready"
+}

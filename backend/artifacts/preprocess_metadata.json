@@ -1,0 +1,26 @@
+{
+  "total_raw_rows": 1048575,
+  "catalogue_unique_configs": 984081,
+  "train_rows": 175000,
+  "val_rows": 37500,
+  "test_rows": 37500,
+  "features": [
+    "cores",
+    "ram_gb",
+    "ssd_gb",
+    "vram_gb",
+    "PRICE",
+    "price_per_core",
+    "price_per_ram_gb",
+    "price_per_vram_gb",
+    "storage_to_ram_ratio",
+    "hardware_score",
+    "value_score",
+    "device_type",
+    "cpu_brand",
+    "cpu_family",
+    "gpu_brand",
+    "ram_type"
+  ],
+  "duration_seconds": 30.47
+}

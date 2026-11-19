@@ -1,0 +1,66 @@
+[
+  {
+    "feature": "value_score",
+    "importance": 18.65
+  },
+  {
+    "feature": "price_per_vram_gb",
+    "importance": 13.87
+  },
+  {
+    "feature": "price_per_ram_gb",
+    "importance": 13.35
+  },
+  {
+    "feature": "price_per_core",
+    "importance": 12.95
+  },
+  {
+    "feature": "ssd_gb",
+    "importance": 9.48
+  },
+  {
+    "feature": "PRICE",
+    "importance": 9.17
+  },
+  {
+    "feature": "cores",
+    "importance": 6.62
+  },
+  {
+    "feature": "ram_gb",
+    "importance": 5.45
+  },
+  {
+    "feature": "vram_gb",
+    "importance": 4.47
+  },
+  {
+    "feature": "storage_to_ram_ratio",
+    "importance": 3.47
+  },
+  {
+    "feature": "hardware_score",
+    "importance": 1.97
+  },
+  {
+    "feature": "cpu_family",
+    "importance": 0.5
+  },
+  {
+    "feature": "cpu_brand",
+    "importance": 0.03
+  },
+  {
+    "feature": "gpu_brand",
+    "importance": 0.03
+  },
+  {
+    "feature": "device_type",
+    "importance": 0.0
+  },
+  {
+    "feature": "ram_type",
+    "importance": 0.0
+  }
+]
